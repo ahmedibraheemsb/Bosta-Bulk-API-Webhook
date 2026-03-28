@@ -357,7 +357,7 @@ function buildFilters() {
   if (type) body.type = type;
   if (trackingRaw) body.trackingNumbers = trackingRaw.split(',').map(s => s.trim()).filter(Boolean);
   if (phone) body.mobilePhones = phone;
-  if (ref) body.businessReference = ref.replace(/^#/, '');
+  if (ref) body.businessReference = ref.startsWith('#') ? ref : `#${ref}`;
   return body;
 }
 
@@ -412,7 +412,7 @@ function renderTable(deliveries) {
           <input type="radio" name="sel_${ref}" id="${radioId}" value="${d.trackingNumber}" ${(isSelected || (isLatest && !refHasSelection)) ? 'checked' : ''} />
         </td>
         <td>
-          <span style="font-family:var(--mono);font-size:12px">#${d.businessRef}</span>
+          <span style="font-family:var(--mono);font-size:12px">${d.businessRef.startsWith('#') ? d.businessRef : '#' + d.businessRef}</span>
           ${isDup ? '<span class="dup-tag">مكرر</span>' : ''}
         </td>
         <td class="mono">${d.trackingNumber || '—'}</td>
