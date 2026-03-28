@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bosta Bulk API-Webhook — EcomModa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:       #f4f4f6;
+    --surface:  #ffffff;
+    --border:   #e2e2e8;
+    --border2:  #d0d0d8;
+    --text:     #1a1a22;
+    --muted:    #80808f;
+    --accent:   #e8372a;
+    --green:    #16a34a;
+    --yellow:   #d97706;
+    --blue:     #2563eb;
+    --radius:   8px;
+    --mono:     'JetBrains Mono', monospace;
+    --sans:     'IBM Plex Sans Arabic', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; min-height: 100vh; }
+
+  /* ── Layout ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    background: var(--surface); position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-brand { font-size: 13px; color: var(--muted); letter-spacing: .03em; }
+  .topbar-title { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); display: inline-block; margin-right: 6px; }
+
+  .main { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
+  }
+  .card-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 16px; }
+
+  /* ── Filters ── */
+  .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
+  .field input, .field select {
+    background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+    color: var(--text); font-family: var(--sans); font-size: 13px; padding: 8px 10px;
+    outline: none; transition: border-color .15s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+
+  /* multi-select state codes */
+  .state-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+    gap: 6px; max-height: 220px; overflow-y: auto; padding: 2px;
+  }
+  .state-chip {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+    cursor: pointer; transition: border-color .12s, background .12s; user-select: none;
+  }
+  .state-chip:hover { border-color: var(--border2); background: #ebebef; }
+  .state-chip.selected { border-color: var(--accent); background: rgba(232,55,42,.07); }
+  .state-chip input[type=checkbox] { display: none; }
+  .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--muted); }
+  .state-chip.selected .chip-dot { background: var(--accent); }
+  .chip-label { font-size: 12px; line-height: 1.3; }
+  .chip-code { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-right: auto; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px; border-radius: 6px; font-family: var(--sans);
+    font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: opacity .15s;
+  }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:not(:disabled):hover { opacity: .85; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border2); color: var(--text); }
+  .btn-ghost:not(:disabled):hover { border-color: var(--text); }
+  .btn-green { background: var(--green); color: #fff; font-weight: 600; }
+  .btn-green:not(:disabled):hover { opacity: .85; }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+  .row-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    text-align: right; padding: 10px 12px; font-size: 11px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .06em;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:hover { background: rgba(0,0,0,.02); }
+  tbody tr.duplicate-group { background: rgba(232,55,42,.03); }
+  tbody tr.selected-row { background: rgba(22,163,74,.06); }
+  td { padding: 10px 12px; vertical-align: middle; }
+  td.mono { font-family: var(--mono); font-size: 12px; }
+
+  /* radio col */
+  .radio-col { width: 36px; text-align: center; }
+  input[type=radio] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+
+  /* state badge */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; white-space: nowrap;
+  }
+  .badge-green  { background: rgba(22,163,74,.10);   color: #15803d; }
+  .badge-red    { background: rgba(232,55,42,.10);   color: #c0392b; }
+  .badge-yellow { background: rgba(217,119,6,.10);   color: #b45309; }
+  .badge-blue   { background: rgba(37,99,235,.10);   color: #1d4ed8; }
+  .badge-gray   { background: rgba(128,128,143,.10); color: var(--muted); }
+
+  /* ── Pagination ── */
+  .pagination { display: flex; align-items: center; gap: 10px; padding: 14px 0 0; }
+  .page-info { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  /* ── Status bar ── */
+  .status-bar {
+    font-size: 12px; color: var(--muted); padding: 10px 14px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    font-family: var(--mono); min-height: 38px; display: flex; align-items: center; gap: 8px;
+  }
+  .status-bar.error { border-color: var(--accent); color: #c0392b; }
+  .status-bar.success { border-color: var(--green); color: #15803d; }
+
+  /* spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { width: 13px; height: 13px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0; }
+
+  /* sync results */
+  .sync-results { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .sync-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    border-radius: 5px; font-size: 12px; font-family: var(--mono);
+  }
+  .sync-row.ok  { background: rgba(22,163,74,.08);  color: #15803d; }
+  .sync-row.err { background: rgba(232,55,42,.08);  color: #c0392b; }
+
+  .empty { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 13px; }
+
+  /* duplicate indicator */
+  .dup-tag {
+    font-size: 10px; font-family: var(--mono); color: var(--accent);
+    border: 1px solid var(--accent); border-radius: 3px; padding: 1px 5px; opacity: .7;
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">EcomModa</div>
+  <div class="topbar-title"><span class="dot"></span>Bosta Bulk API-Webhook</div>
+  <div style="width:80px"></div>
+</div>
+
+<div class="main">
+
+  <!-- Worker URL -->
+  <div class="card">
+    <div class="card-title">إعداد</div>
+    <div class="field" style="max-width:440px">
+      <label>Worker URL</label>
+      <input id="workerUrl" type="url" />
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="card">
+    <div class="card-title">فلاتر البحث</div>
+
+    <!-- State codes multi-select -->
+    <div style="margin-bottom:16px">
+      <div class="field" style="margin-bottom:8px">
+        <label>الحالة (State)</label>
+      </div>
+      <div class="state-grid" id="stateGrid"></div>
+    </div>
+
+    <div class="filters-grid">
+      <div class="field">
+        <label>النوع (Type)</label>
+        <select id="filterType">
+          <option value="">كل الأنواع</option>
+          <option value="SEND">توصيل</option>
+          <option value="EXCHANGE">إستبدال</option>
+          <option value="RTO">RTO</option>
+          <option value="RETURN">Return</option>
+          <option value="CASH_COLLECTION">Cash Collection</option>
+          <option value="CUSTOMER_RETURN_PICKUP">Customer Return Pickup</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>رقم Tracking</label>
+        <input id="filterTracking" type="text" dir="ltr" />
+      </div>
+      <div class="field">
+        <label>رقم التليفون</label>
+        <input id="filterPhone" type="text" dir="ltr" />
+      </div>
+      <div class="field">
+        <label>Business Reference</label>
+        <input id="filterRef" type="text" dir="ltr" />
+      </div>
+      <div class="field">
+        <label>نتائج في الصفحة</label>
+        <select id="filterLimit">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-top:16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+      <button class="btn btn-primary" id="btnSearch">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        بحث
+      </button>
+      <button class="btn btn-ghost" id="btnClearFilters">مسح الفلاتر</button>
+      <div id="searchStatus" class="status-bar" style="flex:1; min-width:200px">في انتظار البحث...</div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="resultsCard" style="display:none">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px">
+      <div class="card-title" style="margin:0">النتائج</div>
+      <div class="row-actions">
+        <button class="btn btn-ghost btn-sm" id="btnSelectAll">تحديد الكل</button>
+        <button class="btn btn-ghost btn-sm" id="btnDeselectAll">إلغاء الكل</button>
+        <span id="selectedCount" style="font-size:12px; color:var(--muted); font-family:var(--mono)">0 محدد</span>
+        <button class="btn btn-green btn-sm" id="btnSync" disabled>
+          Sync to Shopify
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="radio-col"></th>
+            <th>Business Ref</th>
+            <th>Tracking</th>
+            <th>الحالة</th>
+            <th>النوع</th>
+            <th>محاولات</th>
+            <th>COD</th>
+            <th>تاريخ الإنشاء</th>
+            <th>آخر تحديث</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pagination">
+      <button class="btn btn-ghost btn-sm" id="btnPrev" disabled>→ السابق</button>
+      <span class="page-info" id="pageInfo">—</span>
+      <button class="btn btn-ghost btn-sm" id="btnNext" disabled>التالي ←</button>
+    </div>
+  </div>
+
+  <!-- Sync Results -->
+  <div id="syncCard" class="card" style="display:none">
+    <div class="card-title">نتائج الـ Sync</div>
+    <div id="syncSummary" style="font-size:13px; margin-bottom:10px"></div>
+    <div class="sync-results" id="syncResults"></div>
+  </div>
+
+</div>
+
+<script>
+const STATE_MAP = {
+  10:"Pickup requested",11:"Waiting for route",20:"Route Assigned",
+  21:"Picked up from business",22:"Picking up from consignee",23:"Picked up from consignee",
+  24:"Received at warehouse",25:"Fulfilled",30:"In transit between Hubs",
+  40:"Picking up",41:"Picked up",45:"Delivered",46:"Returned to business",
+  47:"Exception",48:"Terminated",49:"Canceled",100:"Lost"
+};
+
+// State badge color mapping
+function stateColor(code) {
+  const c = Number(code);
+  if (c === 45) return 'badge-green';
+  if ([46,47,48,49,100].includes(c)) return 'badge-red';
+  if ([40,41,21,22,23,24,30].includes(c)) return 'badge-blue';
+  if ([10,11,20].includes(c)) return 'badge-yellow';
+  return 'badge-gray';
+}
+
+// Build state chips
+const stateGrid = document.getElementById('stateGrid');
+Object.entries(STATE_MAP).forEach(([code, label]) => {
+  const chip = document.createElement('label');
+  chip.className = 'state-chip';
+  chip.innerHTML = `
+    <input type="checkbox" value="${code}" />
+    <span class="chip-dot"></span>
+    <span class="chip-label">${label}</span>
+    <span class="chip-code">${code}</span>
+  `;
+  chip.querySelector('input').addEventListener('change', () => {
+    chip.classList.toggle('selected', chip.querySelector('input').checked);
+  });
+  stateGrid.appendChild(chip);
+});
+
+// ── State ────────────────────────────────────────────────────────────────────
+let currentPage = 1;
+let currentLimit = 50;
+let totalCount = 0;
+let allDeliveries = []; // current page deliveries
+// Map: businessRef → [deliveries] for duplicate detection
+let refGroups = {};
+// Selected: Map trackingNumber → delivery object
+let selected = {};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function workerUrl() { return document.getElementById('workerUrl').value.trim().replace(/\/$/, ''); }
+
+function setStatus(msg, type = '') {
+  const el = document.getElementById('searchStatus');
+  el.className = 'status-bar' + (type ? ' ' + type : '');
+  el.innerHTML = type === 'loading'
+    ? `<div class="spinner"></div><span>${msg}</span>`
+    : msg;
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleString('ar-EG', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function buildFilters() {
+  const stateCodes = [...document.querySelectorAll('#stateGrid input:checked')].map(el => el.value);
+  const type = document.getElementById('filterType').value;
+  const trackingRaw = document.getElementById('filterTracking').value.trim();
+  const phone = document.getElementById('filterPhone').value.trim();
+  const ref = document.getElementById('filterRef').value.trim();
+  const limit = parseInt(document.getElementById('filterLimit').value);
+
+  const body = { page: currentPage, limit };
+  if (stateCodes.length) body.stateCodes = stateCodes;
+  if (type) body.type = type;
+  if (trackingRaw) body.trackingNumbers = trackingRaw.split(',').map(s => s.trim()).filter(Boolean);
+  if (phone) body.mobilePhones = phone;
+  if (ref) body.businessReference = ref.replace(/^#/, '');
+  return body;
+}
+
+function updateSelectedCount() {
+  const n = Object.keys(selected).length;
+  document.getElementById('selectedCount').textContent = `${n} محدد`;
+  document.getElementById('btnSync').disabled = n === 0;
+}
+
+// ── Render table ─────────────────────────────────────────────────────────────
+function renderTable(deliveries) {
+  const tbody = document.getElementById('resultsBody');
+  tbody.innerHTML = '';
+
+  if (!deliveries.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">لا توجد نتائج</td></tr>';
+    return;
+  }
+
+  // Group by businessRef to detect duplicates
+  refGroups = {};
+  deliveries.forEach(d => {
+    if (!refGroups[d.businessRef]) refGroups[d.businessRef] = [];
+    refGroups[d.businessRef].push(d);
+  });
+
+  // For each ref group, sort by updatedAt desc → first one is "latest"
+  Object.values(refGroups).forEach(group => {
+    group.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  });
+
+  // Render — group duplicates together
+  Object.entries(refGroups).forEach(([ref, group]) => {
+    const isDup = group.length > 1;
+    group.forEach((d, idx) => {
+      const isLatest = idx === 0;
+      const radioId = `radio_${d.trackingNumber}`;
+      const isSelected = !!selected[d.trackingNumber];
+
+      // Auto-select latest in each group if nothing is manually selected for this ref
+      const refHasSelection = group.some(g => selected[g.trackingNumber]);
+      if (isLatest && !refHasSelection) {
+        selected[d.trackingNumber] = d;
+      }
+
+      const tr = document.createElement('tr');
+      tr.className = (isDup ? 'duplicate-group ' : '') + (isSelected || (isLatest && !refHasSelection) ? 'selected-row' : '');
+      tr.dataset.tracking = d.trackingNumber;
+
+      tr.innerHTML = `
+        <td class="radio-col">
+          <input type="radio" name="sel_${ref}" id="${radioId}" value="${d.trackingNumber}" ${(isSelected || (isLatest && !refHasSelection)) ? 'checked' : ''} />
+        </td>
+        <td>
+          <span style="font-family:var(--mono);font-size:12px">#${d.businessRef}</span>
+          ${isDup ? '<span class="dup-tag">مكرر</span>' : ''}
+        </td>
+        <td class="mono">${d.trackingNumber || '—'}</td>
+        <td><span class="badge ${stateColor(d.stateCode)}">${d.state || '—'}</span></td>
+        <td style="font-size:12px">${d.orderType || '—'}</td>
+        <td class="mono" style="text-align:center">${d.attempts ?? '—'}</td>
+        <td class="mono">${d.cod !== null && d.cod !== undefined ? d.cod.toLocaleString('en-US') + ' EGP' : '—'}</td>
+        <td style="font-size:12px">${fmtDate(d.createdAt)}</td>
+        <td style="font-size:12px">${fmtDate(d.updatedAt)}</td>
+      `;
+
+      // Radio change
+      tr.querySelector('input[type=radio]').addEventListener('change', (e) => {
+        // Deselect all in group
+        group.forEach(g => delete selected[g.trackingNumber]);
+        // Select chosen
+        selected[d.trackingNumber] = d;
+        // Re-highlight rows
+        group.forEach(g => {
+          const row = tbody.querySelector(`tr[data-tracking="${g.trackingNumber}"]`);
+          if (row) row.classList.toggle('selected-row', g.trackingNumber === d.trackingNumber);
+        });
+        updateSelectedCount();
+      });
+
+      tbody.appendChild(tr);
+    });
+  });
+
+  updateSelectedCount();
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+async function doSearch(page = 1) {
+  const url = workerUrl();
+  if (!url) { setStatus('أدخل Worker URL أولاً', 'error'); return; }
+
+  currentPage = page;
+  const body = buildFilters();
+  currentLimit = body.limit;
+
+  if (!body.stateCodes?.length && !body.type && !body.trackingNumbers?.length && !body.mobilePhones && !body.businessReference) {
+    setStatus('اختر فلتر واحد على الأقل', 'error'); return;
+  }
+
+  setStatus('جاري البحث...', 'loading');
+  selected = {};
+
+  try {
+    const res = await fetch(`${url}/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      setStatus(data.error || `خطأ ${res.status}`, 'error');
+      return;
+    }
+
+    allDeliveries = data.deliveries || [];
+    totalCount = data.count || allDeliveries.length;
+    const totalPages = Math.ceil(totalCount / currentLimit);
+
+    setStatus(`${totalCount.toLocaleString('en-US')} نتيجة — صفحة ${currentPage} من ${totalPages}`, 'success');
+    document.getElementById('pageInfo').textContent =
+      `صفحة ${currentPage} / ${totalPages} — ${totalCount.toLocaleString('en-US')} إجمالي`;
+
+    document.getElementById('btnPrev').disabled = currentPage <= 1;
+    document.getElementById('btnNext').disabled = currentPage >= totalPages;
+
+    renderTable(allDeliveries);
+    document.getElementById('resultsCard').style.display = '';
+    document.getElementById('syncCard').style.display = 'none';
+  } catch (err) {
+    setStatus(`خطأ: ${err.message}`, 'error');
+  }
+}
+
+// ── Sync ──────────────────────────────────────────────────────────────────────
+async function doSync() {
+  const url = workerUrl();
+  if (!url) return;
+
+  const items = Object.values(selected).map(d => ({
+    businessRef:   d.businessRef,
+    trackingNumber: d.trackingNumber,
+    state:         d.state,
+    orderType:     d.orderType,
+    attempts:      d.attempts,
+  }));
+
+  if (!items.length) return;
+
+  document.getElementById('btnSync').disabled = true;
+  setStatus(`جاري الـ Sync لـ ${items.length} أوردر...`, 'loading');
+
+  try {
+    const res = await fetch(`${url}/sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    const data = await res.json();
+
+    const syncCard = document.getElementById('syncCard');
+    const syncResults = document.getElementById('syncResults');
+    const syncSummary = document.getElementById('syncSummary');
+
+    const s = data.summary || {};
+    syncSummary.innerHTML = `
+      <span style="color:var(--green)">✓ ${s.succeeded || 0} نجح</span>
+      ${s.failed ? `&nbsp;·&nbsp;<span style="color:var(--accent)">✗ ${s.failed} فشل</span>` : ''}
+      &nbsp;·&nbsp; إجمالي ${s.total || 0}
+    `;
+
+    syncResults.innerHTML = '';
+    (data.results || []).forEach(r => {
+      const div = document.createElement('div');
+      div.className = `sync-row ${r.success ? 'ok' : 'err'}`;
+      div.textContent = r.success
+        ? `✓ ${r.orderName || r.businessRef}  —  tracking: ${r.trackingNumber}`
+        : `✗ ${r.businessRef}  —  ${r.error}`;
+      syncResults.appendChild(div);
+    });
+
+    syncCard.style.display = '';
+    syncCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    setStatus(
+      `Sync انتهى — ${s.succeeded || 0} نجح، ${s.failed || 0} فشل`,
+      s.failed ? 'error' : 'success'
+    );
+  } catch (err) {
+    setStatus(`خطأ في الـ Sync: ${err.message}`, 'error');
+  } finally {
+    document.getElementById('btnSync').disabled = false;
+    updateSelectedCount();
+  }
+}
+
+// ── Select all / deselect ─────────────────────────────────────────────────────
+document.getElementById('btnSelectAll').addEventListener('click', () => {
+  selected = {};
+  // For each group, select the latest (first after sort)
+  Object.entries(refGroups).forEach(([ref, group]) => {
+    selected[group[0].trackingNumber] = group[0];
+    // Check the radio
+    const tbody = document.getElementById('resultsBody');
+    group.forEach((d, idx) => {
+      const radio = tbody.querySelector(`input[value="${d.trackingNumber}"]`);
+      if (radio) radio.checked = idx === 0;
+      const row = tbody.querySelector(`tr[data-tracking="${d.trackingNumber}"]`);
+      if (row) row.classList.toggle('selected-row', idx === 0);
+    });
+  });
+  updateSelectedCount();
+});
+
+document.getElementById('btnDeselectAll').addEventListener('click', () => {
+  selected = {};
+  document.querySelectorAll('#resultsBody input[type=radio]').forEach(r => r.checked = false);
+  document.querySelectorAll('#resultsBody tr').forEach(r => r.classList.remove('selected-row'));
+  updateSelectedCount();
+});
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+document.getElementById('btnSearch').addEventListener('click', () => doSearch(1));
+document.getElementById('btnSync').addEventListener('click', doSync);
+document.getElementById('btnPrev').addEventListener('click', () => doSearch(currentPage - 1));
+document.getElementById('btnNext').addEventListener('click', () => doSearch(currentPage + 1));
+
+document.getElementById('btnClearFilters').addEventListener('click', () => {
+  document.querySelectorAll('#stateGrid input[type=checkbox]').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.state-chip').classList.remove('selected');
+  });
+  document.getElementById('filterType').value = '';
+  document.getElementById('filterTracking').value = '';
+  document.getElementById('filterPhone').value = '';
+  document.getElementById('filterRef').value = '';
+  document.getElementById('filterLimit').value = '50';
+});
+
+// Load worker URL from localStorage
+const savedUrl = localStorage.getItem('bosta_search_worker_url');
+if (savedUrl) document.getElementById('workerUrl').value = savedUrl;
+document.getElementById('workerUrl').addEventListener('input', e => {
+  localStorage.setItem('bosta_search_worker_url', e.target.value.trim());
+});
+</script>
+</body>
+</html>
