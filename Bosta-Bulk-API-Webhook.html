@@ -176,11 +176,12 @@
         <label>النوع (Type)</label>
         <select id="filterType">
           <option value="">كل الأنواع</option>
-<option value="SEND">Send</option>
-<option value="EXCHANGE">Exchange</option>
-<option value="RTO">RTO</option>
-<option value="CASH_COLLECTION">Cash Collection</option>
-<option value="CRP">CRP</option>
+          <option value="SEND">Send</option>
+          <option value="EXCHANGE">Exchange</option>
+          <option value="RTO">RTO</option>
+          <option value="Return">Return</option>
+          <option value="CASH_COLLECTION">Cash Collection</option>
+          <option value="CUSTOMER_RETURN_PICKUP">Customer Return Pickup</option>
         </select>
       </div>
       <div class="field">
@@ -271,6 +272,16 @@ const STATE_MAP = {
   104:"Archived", 105:"On hold",
 };
 
+// Map filter value → orderType value returned by Bosta
+const TYPE_VALUE_MAP = {
+  'SEND':                   'Send',
+  'EXCHANGE':               'Exchange',
+  'RTO':                    'Return to Origin',
+  'Return':                 'Return',
+  'CASH_COLLECTION':        'Cash Collection',
+  'CUSTOMER_RETURN_PICKUP': 'Customer Return Pickup',
+};
+
 function stateColor(code) {
   const c = Number(code);
   if (c === 45) return 'badge-green';
@@ -327,7 +338,6 @@ function fmtDate(iso) {
 
 function buildFilters() {
   const stateCodes = [...document.querySelectorAll('#stateGrid input:checked')].map(el => el.value);
-  const type = document.getElementById('filterType').value;
   const trackingRaw = document.getElementById('filterTracking').value.trim();
   const phone = document.getElementById('filterPhone').value.trim();
   const ref = document.getElementById('filterRef').value.trim();
@@ -335,7 +345,7 @@ function buildFilters() {
 
   const body = { page: currentPage, limit };
   if (stateCodes.length) body.stateCodes = stateCodes;
-  if (type) body.type = type;
+  // type لا نبعته لـ Bosta — نفلتر client-side بعد الاستجابة
   if (trackingRaw) body.trackingNumbers = trackingRaw.split(',').map(s => s.trim()).filter(Boolean);
   if (phone) body.mobilePhones = phone;
   if (ref) body.businessReference = ref.startsWith('#') ? ref : `#${ref}`;
@@ -424,7 +434,9 @@ async function doSearch(page = 1) {
   const body = buildFilters();
   currentLimit = body.limit;
 
-  if (!body.stateCodes?.length && !body.type && !body.trackingNumbers?.length && !body.mobilePhones && !body.businessReference) {
+  const typeFilter = document.getElementById('filterType').value;
+
+  if (!body.stateCodes?.length && !typeFilter && !body.trackingNumbers?.length && !body.mobilePhones && !body.businessReference) {
     setStatus('اختر فلتر واحد على الأقل', 'error'); return;
   }
 
@@ -444,12 +456,19 @@ async function doSearch(page = 1) {
     }
 
     allDeliveries = data.deliveries || [];
+
+    // Client-side type filter
+    if (typeFilter) {
+      const filterVal = TYPE_VALUE_MAP[typeFilter] || typeFilter;
+      allDeliveries = allDeliveries.filter(d => d.orderType === filterVal);
+    }
+
     totalCount = data.count || allDeliveries.length;
     const totalPages = Math.ceil(totalCount / currentLimit);
 
-    setStatus(`${totalCount.toLocaleString('en-US')} نتيجة — صفحة ${currentPage} من ${totalPages}`, 'success');
+    setStatus(`${allDeliveries.length.toLocaleString('en-US')} نتيجة — صفحة ${currentPage} من ${totalPages}`, 'success');
     document.getElementById('pageInfo').textContent =
-      `صفحة ${currentPage} / ${totalPages} — ${totalCount.toLocaleString('en-US')} إجمالي`;
+      `صفحة ${currentPage} / ${totalPages} — ${allDeliveries.length.toLocaleString('en-US')} في هذه الصفحة`;
 
     document.getElementById('btnPrev').disabled = currentPage <= 1;
     document.getElementById('btnNext').disabled = currentPage >= totalPages;
