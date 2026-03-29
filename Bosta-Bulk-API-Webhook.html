@@ -272,7 +272,6 @@ const STATE_MAP = {
   104:"Archived", 105:"On hold",
 };
 
-// Map filter value → orderType value returned by Bosta
 const TYPE_VALUE_MAP = {
   'SEND':                   'Send',
   'EXCHANGE':               'Exchange',
@@ -281,6 +280,8 @@ const TYPE_VALUE_MAP = {
   'CASH_COLLECTION':        'Cash Collection',
   'CUSTOMER_RETURN_PICKUP': 'Customer Return Pickup',
 };
+
+const SYNC_BATCH_SIZE = 15;
 
 function stateColor(code) {
   const c = Number(code);
@@ -291,7 +292,6 @@ function stateColor(code) {
   return 'badge-gray';
 }
 
-// Build state chips
 const stateGrid = document.getElementById('stateGrid');
 Object.entries(STATE_MAP).forEach(([code, label]) => {
   const chip = document.createElement('label');
@@ -345,7 +345,6 @@ function buildFilters() {
 
   const body = { page: currentPage, limit };
   if (stateCodes.length) body.stateCodes = stateCodes;
-  // type لا نبعته لـ Bosta — نفلتر client-side بعد الاستجابة
   if (trackingRaw) body.trackingNumbers = trackingRaw.split(',').map(s => s.trim()).filter(Boolean);
   if (phone) body.mobilePhones = phone;
   if (ref) body.businessReference = ref.startsWith('#') ? ref : `#${ref}`;
@@ -498,50 +497,63 @@ async function doSync() {
   document.getElementById('btnSync').disabled = true;
   setStatus(`جاري الـ Sync لـ ${items.length} أوردر...`, 'loading');
 
-  try {
-    const res = await fetch(`${url}/sync`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items }),
-    });
-    const data = await res.json();
+  const allResults  = [];
+  let totalSucceeded = 0;
+  let totalFailed    = 0;
 
-    const syncCard    = document.getElementById('syncCard');
-    const syncResults = document.getElementById('syncResults');
-    const syncSummary = document.getElementById('syncSummary');
+  for (let i = 0; i < items.length; i += SYNC_BATCH_SIZE) {
+    const batch = items.slice(i, i + SYNC_BATCH_SIZE);
+    setStatus(`جاري الـ Sync... ${Math.min(i + SYNC_BATCH_SIZE, items.length)} / ${items.length}`, 'loading');
 
-    const s = data.summary || {};
-    syncSummary.innerHTML = `
-      <span style="color:var(--green)">✓ ${s.succeeded || 0} نجح</span>
-      ${s.failed ? `&nbsp;·&nbsp;<span style="color:var(--accent)">✗ ${s.failed} فشل</span>` : ''}
-      &nbsp;·&nbsp; إجمالي ${s.total || 0}
-    `;
-
-    syncResults.innerHTML = '';
-    (data.results || []).forEach(r => {
-      const div = document.createElement('div');
-      div.className = `sync-row ${r.success ? 'ok' : 'err'}`;
-      let msg = r.success
-        ? `✓ ${r.orderName || r.businessRef}  —  tracking: ${r.trackingNumber}`
-        : `✗ ${r.businessRef}  —  ${r.error}`;
-      if (r.success && r.tagError) msg += `  ·  tag error: ${r.tagError}`;
-      div.textContent = msg;
-      syncResults.appendChild(div);
-    });
-
-    syncCard.style.display = '';
-    syncCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    setStatus(
-      `Sync انتهى — ${s.succeeded || 0} نجح، ${s.failed || 0} فشل`,
-      s.failed ? 'error' : 'success'
-    );
-  } catch (err) {
-    setStatus(`خطأ في الـ Sync: ${err.message}`, 'error');
-  } finally {
-    document.getElementById('btnSync').disabled = false;
-    updateSelectedCount();
+    try {
+      const res = await fetch(`${url}/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: batch }),
+      });
+      const data = await res.json();
+      if (data.results) allResults.push(...data.results);
+      totalSucceeded += data.summary?.succeeded || 0;
+      totalFailed    += data.summary?.failed    || 0;
+    } catch (err) {
+      batch.forEach(b => {
+        allResults.push({ businessRef: b.businessRef, success: false, error: err.message });
+        totalFailed++;
+      });
+    }
   }
+
+  const syncCard    = document.getElementById('syncCard');
+  const syncResults = document.getElementById('syncResults');
+  const syncSummary = document.getElementById('syncSummary');
+
+  syncSummary.innerHTML = `
+    <span style="color:var(--green)">✓ ${totalSucceeded} نجح</span>
+    ${totalFailed ? `&nbsp;·&nbsp;<span style="color:var(--accent)">✗ ${totalFailed} فشل</span>` : ''}
+    &nbsp;·&nbsp; إجمالي ${items.length}
+  `;
+
+  syncResults.innerHTML = '';
+  allResults.forEach(r => {
+    const div = document.createElement('div');
+    div.className = `sync-row ${r.success ? 'ok' : 'err'}`;
+    let msg = r.success
+      ? `✓ ${r.orderName || r.businessRef}  —  tracking: ${r.trackingNumber}`
+      : `✗ ${r.businessRef}  —  ${r.error}`;
+    if (r.success && r.tagError) msg += `  ·  tag error: ${r.tagError}`;
+    div.textContent = msg;
+    syncResults.appendChild(div);
+  });
+
+  syncCard.style.display = '';
+  syncCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setStatus(
+    `Sync انتهى — ${totalSucceeded} نجح، ${totalFailed} فشل`,
+    totalFailed ? 'error' : 'success'
+  );
+
+  document.getElementById('btnSync').disabled = false;
+  updateSelectedCount();
 }
 
 document.getElementById('btnSelectAll').addEventListener('click', () => {
